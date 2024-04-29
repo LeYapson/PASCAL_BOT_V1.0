@@ -80,10 +80,16 @@ Once the bot is running and added to your Discord server, you can use the follow
 - `>quiz`: Start a quiz session with random questions fetched from the Django API.
 
 
+## Organization
+
+You can view how the project have been organized with the following jira calendar: https://yapsonstudio.atlassian.net/jira/core/projects/PB/calendar?atlOrigin=eyJpIjoiMGQ4YzZjMDNlZjllNGNiZmI2YjljMjE1OTY4ODEyMDkiLCJwIjoiaiJ9
+
 ## Credits
 
 - This bot uses the discord.py library: https://github.com/Rapptz/discord.py
 - Quiz questions are fetched from a Django API.
+- The bot's functionalities are inspired by the Discord bot tutorial playlist by thenewboston: https://youtube.com/playlist?list=PL6gx4Cwl9DGAHdJdtEl0-XiRfPRAvpbSz&si=SX2jzad8vrC5mWkR
+- The bot's functionalities are also inspired by the Discord bot tutorial by Very Academy: https://python.plainenglish.io/build-discord-quizbot-with-python-and-deploy-1-44dec1250a37
 
 ## License
 
