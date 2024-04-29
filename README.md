@@ -87,7 +87,7 @@ You can view how the project have been organized with the following jira calenda
 ## Credits
 
 - This bot uses the discord.py library: https://github.com/Rapptz/discord.py
-- Quiz questions are fetched from a Django API.
+- Quiz questions are fetched from a built-in Django API.
 - The bot's functionalities are inspired by the Discord bot tutorial playlist by thenewboston: https://youtube.com/playlist?list=PL6gx4Cwl9DGAHdJdtEl0-XiRfPRAvpbSz&si=SX2jzad8vrC5mWkR
 - The bot's functionalities are also inspired by the Discord bot tutorial by Very Academy: https://python.plainenglish.io/build-discord-quizbot-with-python-and-deploy-1-44dec1250a37
 
