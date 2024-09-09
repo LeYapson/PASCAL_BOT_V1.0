@@ -79,7 +79,7 @@ async def on_ready():
     print(f'{bot.user.name} est connecté au serveur.')
 
     # Envoyer un message de bienvenue avec les réactions pour choisir les rôles
-    guild = bot.get_guild(int(GUILD_ID))
+    guild = bot.get_guild(GUILD_ID)
     channel = discord.utils.get(guild.text_channels, name='👋┊roles-et-filières')  # Nom du canal à changer si besoin
     message = await channel.send(
         "Réagissez pour obtenir vos rôles:\n"

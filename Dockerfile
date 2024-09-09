@@ -7,9 +7,6 @@ WORKDIR /app
 # Copy the bot code into the container
 COPY . .
 
-# copy the quizbot directory into the container
-COPY quizbot /app/quizbot
-
 # Set up a virtual environment
 RUN python -m venv /app/venv
 
