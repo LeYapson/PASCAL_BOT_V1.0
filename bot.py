@@ -1,236 +1,207 @@
-import asyncio
-import requests
-import json
-import os
 import discord
 from discord.ext import commands
+import smtplib
+import random
+import re
+import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
+TOKEN = os.getenv('DISCORD-TOKEN')
+GUILD_ID = os.getenv('GUILD_ID')  # Remplacer par l'ID de votre serveur
+EMAIL_DOMAIN = '@ynov.com'
+VERIFICATION_CODES = {}  # Stocker les codes de vérification ici
+
+# Configurer le bot
 intents = discord.Intents.default()
-intents.members = True  # Enable the member intent
+intents.members = True  # Nécessaire pour manipuler les membres
+bot = commands.Bot(command_prefix='>', intents=intents)
 
-bot = commands.Bot(command_prefix=">", intents=intents)
-bot.remove_command('help')  # Removing default help command
+# Fonction pour envoyer un e-mail avec un code de vérification
+def send_verification_email(email_address, verification_code):
+    sender_email = "yapsonstudi@gmail.com"
+    password = os.getenv('EMAIL_PASSWORD')
 
+    message = f"Votre code de vérification est : {verification_code}"
+    try:
+        server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+        server.login(sender_email, password)
+        server.sendmail(sender_email, email_address, message)
+        server.quit()
+        print(f"Code envoyé à {email_address}")
+    except Exception as e:
+        print(f"Erreur lors de l'envoi de l'email: {e}")
 
-# Event: Bot is ready
+# Commande pour débuter l'inscription
+@bot.command(name='inscription')
+async def inscription(ctx, email: str):
+    """
+    Démarre le processus d'inscription en envoyant un code de vérification par email.
+    """
+    # Vérifier que l'e-mail appartient à l'institution
+    if not re.match(rf'^[\w\.-]+{EMAIL_DOMAIN}$', email):
+        await ctx.send(f"Veuillez entrer une adresse e-mail valide se terminant par {EMAIL_DOMAIN}.")
+        return
+
+    # Générer et stocker un code de vérification
+    verification_code = random.randint(100000, 999999)
+    VERIFICATION_CODES[ctx.author.id] = (email, verification_code)
+
+    # Envoyer le code à l'adresse e-mail
+    send_verification_email(email, verification_code)
+    await ctx.send(f"Un code de vérification a été envoyé à {email}. Veuillez l'entrer avec la commande `>verifier <code>`.")
+
+# Commande pour vérifier le code
+@bot.command(name='verifier')
+async def verifier(ctx, code: int):
+    """
+    Vérifie le code de vérification et attribue un rôle si le code est correct.
+    """
+    if ctx.author.id not in VERIFICATION_CODES:
+        await ctx.send("Vous n'avez pas encore initié le processus d'inscription.")
+        return
+
+    email, correct_code = VERIFICATION_CODES[ctx.author.id]
+
+    if code == correct_code:
+        # Ajouter un rôle après la vérification (le rôle "Étudiant")
+        role = discord.utils.get(ctx.guild.roles, name="Étudiant")
+        await ctx.author.add_roles(role)
+        await ctx.send("Votre compte a été vérifié et vous avez reçu le rôle Étudiant.")
+        del VERIFICATION_CODES[ctx.author.id]
+    else:
+        await ctx.send("Le code est incorrect. Veuillez réessayer.")
+
+# Ajouter les rôles par réaction
 @bot.event
 async def on_ready():
-    print("Bot is ready")
+    print(f'{bot.user.name} est connecté au serveur.')
 
-# Command: Help
-@bot.command()
-async def help(ctx):
-    """
-    Displays information about bot commands.
-    """
-    embed = discord.Embed(
-        title='Bot Commands',
-        description='Welcome to the help section. Here are all the commands',
-        colour=discord.Colour.dark_gold()
+    # Envoyer un message de bienvenue avec les réactions pour choisir les rôles
+    guild = bot.get_guild(int(GUILD_ID))
+    channel = discord.utils.get(guild.text_channels, name='👋┊roles-et-filières')  # Nom du canal à changer si besoin
+    message = await channel.send(
+        "Réagissez pour obtenir vos rôles:\n"
+        "📱 pour B1 INFO\n💻 pour B3 INFO\n🖥️ pour M1/M2 INFO\n\n"
+        "📈 pour B1 MARCOM\n📉 pour B3 MARCOM\n📊 pour M1/M2 MARCOM\n\n"
+        "🏕️ pour B1 CREA\n🏜️ pour B3 CREA\n🏞️ pour M1/M2 CREA\n\n"
+        "🎧 pour B1 AUDIO\n🎤 pour B3 AUDIO\n🎚️ pour M1/M2 AUDIO\n\n"
+        "⛺ pour B1 ARCHI\n🏠 pour B3 ARCHI\n🏟️ pour M1/M2 ARCHI\n\n"
+        "🗡️ pour B1 ANIM 3D\n⚔️ pour B3 ANIM 3D\n🔫 pour M1/M2 ANIM 3D\n\n"
+        "👔 pour INTERVENANT(E)"
     )
 
-    embed.set_thumbnail(url='https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRqCjJ4HreZZOZq_GKV2DfXGFHRrFPtpxuAXg&s')
+    # Ajout des réactions au message
+    reactions = ['📱', '💻', '🖥️', '📈', '📉', '📊', '🏕️', '🏜️', '🏞️', '🎧', '🎤', '🎚️', '⛺', '🏠', '🏟️', '🗡️', '⚔️', '🔫', '👔']
+    for emoji in reactions:
+        await message.add_reaction(emoji)
 
-    # Adding fields for each command
-    embed.add_field(
-        name='>help',
-        value='Shows this',
-        inline=False
-    )
-    embed.add_field(
-        name='>info',
-        value='Send the information of the user',
-        inline=False
-    )
-    embed.add_field(
-        name='>punch',
-        value='Punch someone you don\'t like. Command: >punch name',
-        inline=False
-    )
-    embed.add_field(
-        name='>strike',
-        value='Allows you to strike a user. Command: >strike name1 name2',
-        inline=False
-    )
-    embed.add_field(
-        name='>kick',
-        value='Kick a user you don\'t like. Command: >kick name reason',
-        inline=False
-    )
-    embed.add_field(
-        name='>ban',
-        value='Ban a user who don\'t respect the rules. Command: >ban name reason',
-        inline=False
-    )
-    embed.add_field(
-        name='>quiz',
-        value='Start a quiz session. Command: >quiz',
-        inline=False
-    )
-    await ctx.send(embed=embed)
-
-# Command: Punch
-@bot.command()
-async def punch(ctx, arg):
-    """
-    Allows you to punch a user: >punch name
-    """
-    embed = discord.Embed(
-        title="Punch",
-        description=f'Punched {arg}',
-        color=discord.Color.dark_gold()
-    )
-    await ctx.send(embed=embed)
-
-# Command: Strike
-@bot.command()
-async def strike(ctx, arg1, arg2):
-    """
-    Allows you to strike a user: >strike name1 name2
-    """
-    embed = discord.Embed(
-        title="Strike",
-        description=f'{arg1} c\'est fait foudroyer par {arg2}',
-        color=discord.Color.dark_gold()
-    )
-    await ctx.send(embed=embed)
-
-# Command: Info
-@bot.command()
-async def info(ctx):
-    """
-    Send the information of the user: >info
-    """
-    guild_id = str(ctx.guild.id)
-    memberCount = str(ctx.guild.member_count)
-    icon = str(ctx.guild.icon_url)
-    desc = ctx.guild.description
-
-    embed = discord.Embed(
-        title=ctx.guild.name + " Server Information",
-        description=desc,
-        color=discord.Color.dark_gold()
-    )
-    embed.set_thumbnail(url=icon)
-    embed.add_field(name="Server ID", value=guild_id, inline=True)
-    embed.add_field(name="Member Count", value=memberCount, inline=True)
-
-    await ctx.send(embed=embed)
-
-    # Send member information
-    members = []
-    async for member in ctx.guild.fetch_members(limit=150):
-        await ctx.send('Name : {}\t Status : {}\n Joined at {}'.format(member.display_name, str(member.status),
-                                                                       str(member.joined_at)))
-
-# Command: Kick
-@bot.command()
-async def kick(ctx, member: discord.Member, *, reason=None):
-    """
-    Kick a user from the server.
-    """
-    embed = discord.Embed(
-        title='KICK ALERT !',
-        description='AN ADMIN JUST KICK SOMEONE, LET\'S SEE WHO HAVE BEEN KICKED',
-        colour=discord.Colour.dark_gold()
-    )
-    embed.set_thumbnail(url='https://media.tenor.com/PHWXH5oWlJIAAAAM/lit-retourne-tv.gif')
-
-    if ctx.message.author.guild_permissions.kick_members:  # Check if the user has permission to kick members
-        if reason is None:
-            kick_message = f"{member.mention} has been kicked by {ctx.author} (No reason provided)."
-        else:
-            kick_message = f"{member.mention} has been kicked by {ctx.author} (Reason: {reason})."
-
-        embed.add_field(
-            name="Member Kicked",
-            value=kick_message,
-            inline=False
-        )
-
-        try:
-            await member.kick(reason=reason)
-            await ctx.send(embed=embed)
-        except discord.Forbidden:
-            await ctx.send("I don't have permission to kick that member.")
-    else:
-        await ctx.send("You do not have permission to kick members.")
-
-# Command: Ban
-@bot.command()
-async def ban(ctx, member: discord.Member, reason=None):
-    """
-    Ban a user from the server.
-    """
-    embed = discord.Embed(
-        title='BAN ALERT!',
-        description='AN ADMIN JUST BAN SOMEONE, LET\'S SEE WHO HAVE BEEN BANNED',
-        colour=discord.Colour.dark_gold()
-    )
-    embed.add_field(name='Reason:', value=reason if reason else 'No reason provided')
-    embed.set_thumbnail(url='https://media1.tenor.com/m/atbWSwDthPkAAAAC/case-caseoh.gif')
-    await ctx.send(embed=embed)
-
-    if reason is None:
-        await ctx.send(f"Woah {ctx.author.mention}, Make sure you provide a reason!")
-    else:
-        message_ok = f"You have been banned from {ctx.guild.name} for {reason}"
-        await member.send(message_ok)
-        await member.ban(reason=reason)
-
-# Command: Quiz
-@bot.command()
-async def quiz(ctx):
-    """
-    Start a quiz session.
-    """
-    if ctx.author == bot.user:
+# Attribuer le rôle en fonction de la réaction
+@bot.event
+async def on_raw_reaction_add(payload):
+    if payload.guild_id != int(GUILD_ID):
         return
-    qs, answer = get_question()
-    
-    embed = discord.Embed(
-        title="Quiz",
-        description=qs,
-        color=discord.Color.dark_gold()
-    )
-    embed.set_thumbnail(url='https://media.tenor.com/NiGJMe3lTHcAAAAM/counter10-countdown.gif')
 
-    await ctx.send(embed=embed)
+    guild = bot.get_guild(payload.guild_id)
+    member = guild.get_member(payload.user_id)
 
-    def check(m):
-        return m.author == ctx.author and m.content.isdigit()
-    
-    try:
-        guess = await bot.wait_for('message', check=check, timeout=12.0)
-    except asyncio.TimeoutError:
-        return await ctx.channel.send('Timeout')
-    
-    if int(guess.content) == answer:
-        await ctx.channel.send('You got it right!')
-    else:
-        await ctx.channel.send('Try again')
+    role = None
 
-# Function: Get Question
-def get_question():
-    """
-    Fetches a random question from an API.
-    """
-    qs = ''
-    id = 1
-    answer = 0
-    response = requests.get("http://127.0.0.1:8000/api/random/")
-    json_data = json.loads(response.text)
-    qs += "Question: \n"
-    qs += json_data[0]['title'] + "\n"
-    for item in json_data[0]['answer']:
-        qs += str(id) + "." + item['answer'] + "\n"
-        if item['is_correct']:
-            answer = id
-        id += 1
-    return (qs, answer)
+    if payload.emoji.name == '📱':
+        role = discord.utils.get(guild.roles, name="B1 INFO")
+    elif payload.emoji.name == '💻':
+        role = discord.utils.get(guild.roles, name="B3 INFO")
+    elif payload.emoji.name == '🖥️':
+        role = discord.utils.get(guild.roles, name="M1/M2 INFO")
+    elif payload.emoji.name == '📈':
+        role = discord.utils.get(guild.roles, name="B1 MARCOM")
+    elif payload.emoji.name == '📉':
+        role = discord.utils.get(guild.roles, name="B3 MARCOM")
+    elif payload.emoji.name == '📊':
+        role = discord.utils.get(guild.roles, name="M1/M2 MARCOM")
+    elif payload.emoji.name == '🏕️':
+        role = discord.utils.get(guild.roles, name="B1 CREA")
+    elif payload.emoji.name == '🏜️':
+        role = discord.utils.get(guild.roles, name="B3 CREA")
+    elif payload.emoji.name == '🏞️':
+        role = discord.utils.get(guild.roles, name="M1/M2 CREA")
+    elif payload.emoji.name == '🎧':
+        role = discord.utils.get(guild.roles, name="B1 AUDIO")
+    elif payload.emoji.name == '🎤':
+        role = discord.utils.get(guild.roles, name="B3 AUDIO")
+    elif payload.emoji.name == '🎚️':
+        role = discord.utils.get(guild.roles, name="M1/M2 AUDIO")
+    elif payload.emoji.name == '⛺':
+        role = discord.utils.get(guild.roles, name="B1 ARCHI")
+    elif payload.emoji.name == '🏠':
+        role = discord.utils.get(guild.roles, name="B3 ARCHI")
+    elif payload.emoji.name == '🏟️':
+        role = discord.utils.get(guild.roles, name="M1/M2 ARCHI")
+    elif payload.emoji.name == '🗡️':
+        role = discord.utils.get(guild.roles, name="B1 ANIM 3D")
+    elif payload.emoji.name == '⚔️':
+        role = discord.utils.get(guild.roles, name="B3 ANIM 3D")
+    elif payload.emoji.name == '🔫':
+        role = discord.utils.get(guild.roles, name="M1/M2 ANIM 3D")
+    elif payload.emoji.name == '👔':
+        role = discord.utils.get(guild.roles, name="INTERVENANT(E)")
 
-# Running the bot
-bot.run(os.getenv('DISCORD-TOKEN'))
+    if role:
+        await member.add_roles(role)
+
+# Retirer le rôle si la réaction est supprimée
+@bot.event
+async def on_raw_reaction_remove(payload):
+    if payload.guild_id != int(GUILD_ID):
+        return
+
+    guild = bot.get_guild(payload.guild_id)
+    member = guild.get_member(payload.user_id)
+
+    role = None
+
+    if payload.emoji.name == '📱':
+        role = discord.utils.get(guild.roles, name="B1 INFO")
+    elif payload.emoji.name == '💻':
+        role = discord.utils.get(guild.roles, name="B3 INFO")
+    elif payload.emoji.name == '🖥️':
+        role = discord.utils.get(guild.roles, name="M1/M2 INFO")
+    elif payload.emoji.name == '📈':
+        role = discord.utils.get(guild.roles, name="B1 MARCOM")
+    elif payload.emoji.name == '📉':
+        role = discord.utils.get(guild.roles, name="B3 MARCOM")
+    elif payload.emoji.name == '📊':
+        role = discord.utils.get(guild.roles, name="M1/M2 MARCOM")
+    elif payload.emoji.name == '🏕️':
+        role = discord.utils.get(guild.roles, name="B1 CREA")
+    elif payload.emoji.name == '🏜️':
+        role = discord.utils.get(guild.roles, name="B3 CREA")
+    elif payload.emoji.name == '🏞️':
+        role = discord.utils.get(guild.roles, name="M1/M2 CREA")
+    elif payload.emoji.name == '🎧':
+        role = discord.utils.get(guild.roles, name="B1 AUDIO")
+    elif payload.emoji.name == '🎤':
+        role = discord.utils.get(guild.roles, name="B3 AUDIO")
+    elif payload.emoji.name == '🎚️':
+        role = discord.utils.get(guild.roles, name="M1/M2 AUDIO")
+    elif payload.emoji.name == '⛺':
+        role = discord.utils.get(guild.roles, name="B1 ARCHI")
+    elif payload.emoji.name == '🏠':
+        role = discord.utils.get(guild.roles, name="B3 ARCHI")
+    elif payload.emoji.name == '🏟️':
+        role = discord.utils.get(guild.roles, name="M1/M2 ARCHI")
+    elif payload.emoji.name == '🗡️':
+        role = discord.utils.get(guild.roles, name="B1 ANIM 3D")
+    elif payload.emoji.name == '⚔️':
+        role = discord.utils.get(guild.roles, name="B3 ANIM 3D")
+    elif payload.emoji.name == '🔫':
+        role = discord.utils.get(guild.roles, name="M1/M2 ANIM 3D")
+    elif payload.emoji.name == '👔':
+        role = discord.utils.get(guild.roles, name="INTERVENANT(E)")
+
+    if role:
+        await member.remove_roles(role)
+
+# Lancer le bot
+bot.run(TOKEN)
